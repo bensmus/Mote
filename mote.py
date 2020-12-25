@@ -1,9 +1,10 @@
+# Heroku will run the following command to resolve dependencies
+# pip install -r requirements.txt
+
 import os
 
 import discord
-from dotenv import load_dotenv
 
-load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 
 client = discord.Client()
