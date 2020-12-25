@@ -1,8 +1,10 @@
 # Heroku will run the following command to resolve dependencies
 # pip install -r requirements.txt
 
-import os
+# if an environment variable has spaces in it, it needs quotes around it
+# single quotes '' and "" behave differently only if we have substitutions
 
+import os
 import discord
 
 TOKEN = os.getenv('DISCORD_TOKEN')
