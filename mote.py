@@ -1,28 +1,34 @@
-# Heroku will run the following command to resolve dependencies
-# pip install -r requirements.txt
-
-# if an environment variable has spaces in it, it needs quotes around it
-# single quotes '' and "" behave differently only if we have substitutions
-
 import os
-import discord
+from discord.ext import commands
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 
-client = discord.Client()
+bot = commands.Bot(command_prefix='!mote ')
+
+SHRUG = r'¯\\\_(ツ)\_/¯'
+
+save_help_string = (
+    'intent: save text to your library of texts and give it an id and a label\n'
+    'usage: !mote save <id> <text> <label (optional)>\n'
+    f'example: !mote save shrug {SHRUG} emoticon'
+)
+
+id_help_string = (
+    'intent: display text saved in your library based on id\n'
+    'usage: !mote id <id>\n'
+    f'example: !mote id shrug --> displays {SHRUG}'
+)
 
 
-@client.event
-async def on_ready():
-    print(f'{client.user} has connected to Discord!')
+@bot.command(name='save', help=save_help_string)
+async def save(ctx):
+    response = 'save command detected'
+    await ctx.send(response)
 
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+@bot.command(name='id', help=id_help_string)
+async def save(ctx):
+    response = 'id command detected'
+    await ctx.send(response)
 
-    if message.content.startswith('$hello'):
-        await message.channel.send('Hello!')
-
-client.run(TOKEN)
+bot.run(TOKEN)
