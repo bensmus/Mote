@@ -5,7 +5,7 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 bot = commands.Bot(command_prefix='!mote ')
 
-SHRUG = r'¯\\\_(ツ)\_/¯'
+SHRUG = r'¯\_(ツ)_/¯'
 
 save_help_string = (
     'intent: save text to your library of texts and give it an id and a label\n'
@@ -20,14 +20,20 @@ id_help_string = (
 )
 
 
+@bot.command(name='')
+async def just_prefix(ctx):
+    response = f'Hi, i\'m Mote! {SHRUG}\nType \"!mote help\" so I can tell you what I can do.'
+    return response
+
+
 @bot.command(name='save', help=save_help_string)
-async def save(ctx):
+async def save_text(ctx, id, text, label=None):
     response = 'save command detected'
     await ctx.send(response)
 
 
 @bot.command(name='id', help=id_help_string)
-async def save(ctx):
+async def get_text_by_id(ctx, id):
     response = 'id command detected'
     await ctx.send(response)
 
