@@ -1,7 +1,3 @@
-# TODO change prefix changes prefix of bot on all servers
-# which is extremely SHIT
-# TODO https://stackoverflow.com/questions/32276493/how-to-store-and-retrieve-a-dictionary-with-redis
-# json.dumps() and json.loads() for serialization and deserialization
 # standard library
 import os
 
@@ -9,13 +5,18 @@ import os
 import discord
 from discord.ext import commands
 
+# redis for storing persistent data about prefixes and saved entries
+import redis
+r = redis.StrictRedis('localhost', 6379, charset="utf-8",
+                      decode_responses=True)
+
 TOKEN = os.getenv('DISCORD_TOKEN')
 SHRUG = r'¯\_(ツ)_/¯'
 
 bot = commands.Bot(command_prefix='#')
 
 
-@bot.event
+@ bot.event
 async def on_guild_join(guild):
     response = (
         'Joined :white_check_mark:\n'
@@ -55,7 +56,9 @@ prefix_help_string = (
 )
 
 
-def save_to_personal_library(text, ctx, ID, label):
+# TODO: reorganize save_to_personal and save_to_channel
+# because they are so similar
+def save_to_personal(text, ctx, ID, label):
     """
     Saving to personal library is done when user types #save <id> <text> 
     into a DM with the bot. 
@@ -66,10 +69,17 @@ def save_to_personal_library(text, ctx, ID, label):
         f'Label: `{label}`\n'
         f'Saved to `{ctx.author}` personal :person_standing: library :white_check_mark:'
     )
+
+    key = str(ctx.author.id) + ':' + ID
+
+    # str(label) is necessary because label could be None
+    # in which case str(None) = 'None'
+    value = text + ':' + str(label)
+    r.hset('library', key, value)
     return response
 
 
-def save_to_channel_library(text, ctx, ID, label):
+def save_to_channel(text, ctx, ID, label):
     """
     Saving to channel library is done when user types #save <id> <text>
     into a channel on a server that has the bot.
@@ -83,6 +93,13 @@ def save_to_channel_library(text, ctx, ID, label):
         f'Saved to `{ctx.channel}` channel {channel_emoji} '
         f'library on `{ctx.guild}` :white_check_mark:'
     )
+
+    key = str(ctx.channel.id) + ':' + ID
+
+    # str(label) is necessary because label could be None
+    # in which case str(None) = 'None'
+    value = text + ':' + str(label)
+    r.hset('library', key, value)
     return response
 
 
@@ -91,20 +108,37 @@ async def save_text(ctx, ID, text, label=None):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
-        response = save_to_personal_library(text, ctx, ID, label)
+        response = save_to_personal(text, ctx, ID, label)
 
     else:
-        response = save_to_channel_library(text, ctx, ID, label)
+        response = save_to_channel(text, ctx, ID, label)
 
     await ctx.send(response)
 
 
+@bot.command(name='id', help=id_help_string)
+async def get_text_by_id(ctx, ID):
+
+    # detect DM
+    if isinstance(ctx.channel, discord.channel.DMChannel):
+        key = str(ctx.author.id) + ':' + ID
+
+    else:
+        key = str(ctx.channel.id) + ':' + ID
+
+    value = str(r.hget('library', key))
+    text = value.split(':')[0]
+
+    await ctx.send(text)
+
+
+'''
 @bot.command(name='prefix', help=prefix_help_string)
 async def change_prefix(ctx, prefix):
     old_prefix = bot.command_prefix
     response = f'prefix changed from {old_prefix} to {prefix}'
     bot.command_prefix = prefix
     await ctx.send(response)
-
+'''
 
 bot.run(TOKEN)
