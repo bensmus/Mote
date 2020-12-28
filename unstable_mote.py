@@ -12,8 +12,29 @@ r = redis.StrictRedis('localhost', 6379, charset="utf-8",
 
 TOKEN = os.getenv('DISCORD_TOKEN')
 SHRUG = r'¯\_(ツ)_/¯'
+DEFAULT_PREFIX = '#'
 
-bot = commands.Bot(command_prefix='#')
+
+async def determine_prefix(bot, message):
+    guild = message.guild
+    if guild:
+
+        # try to get prefix, if the bot has been on the server before
+        prefix = r.hget('prefix', guild.id)
+
+        # ok, we haven't visited server
+        # set prefix to default
+        if not prefix:
+            r.hset('prefix', guild.id, DEFAULT_PREFIX)
+            return DEFAULT_PREFIX
+
+        return prefix
+
+    return DEFAULT_PREFIX
+
+
+# discord bot command_prefix can be linked to a callable
+bot = commands.Bot(command_prefix=determine_prefix)
 
 
 @ bot.event
@@ -56,62 +77,29 @@ prefix_help_string = (
 )
 
 
-# TODO: reorganize save_to_personal and save_to_channel
-# because they are so similar
-def save_to_personal(text, ctx, ID, label):
-    """
-    Saving to personal library is done when user types #save <id> <text> 
-    into a DM with the bot. 
-    """
-    response = (
-        f'ID: `{ID}`\n'
-        f'Text: `{text}`\n'
-        f'Label: `{label}`\n'
-        f'Saved to `{ctx.author}` personal :person_standing: library :white_check_mark:'
-    )
-
-    key = str(ctx.author.id) + ':' + ID
-
-    # str(label) is necessary because label could be None
-    # in which case str(None) = 'None'
-    value = text + ':' + str(label)
-    r.hset('library', key, value)
-    return response
-
-
-def save_to_channel(text, ctx, ID, label):
-    """
-    Saving to channel library is done when user types #save <id> <text>
-    into a channel on a server that has the bot.
-    """
-
-    channel_emoji = ':person_standing:' * 3
-    response = (
-        f'ID: `{ID}`\n'
-        f'Text: `{text}`\n'
-        f'Label: `{label}`\n'
-        f'Saved to `{ctx.channel}` channel {channel_emoji} '
-        f'library on `{ctx.guild}` :white_check_mark:'
-    )
-
-    key = str(ctx.channel.id) + ':' + ID
-
-    # str(label) is necessary because label could be None
-    # in which case str(None) = 'None'
-    value = text + ':' + str(label)
-    r.hset('library', key, value)
-    return response
-
-
 @bot.command(name='save', help=save_help_string)
 async def save_text(ctx, ID, text, label=None):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
-        response = save_to_personal(text, ctx, ID, label)
+        savetype = ctx.author
+        emoji = ':person_standing:'
 
     else:
-        response = save_to_channel(text, ctx, ID, label)
+        emoji = ':person_standing:' * 3
+        savetype = ctx.channel
+
+    response = (
+        f'ID: `{ID}`\n'
+        f'Text: `{text}`\n'
+        f'Label: `{label}`\n'
+        f'Saved to `{savetype}` {emoji} library :white_check_mark:'
+    )
+
+    # redis storage
+    key = str(savetype.id) + ':' + ID
+    value = text + ':' + str(label)  # label could be None
+    r.hset('library', key, value)
 
     await ctx.send(response)
 
@@ -132,13 +120,17 @@ async def get_text_by_id(ctx, ID):
     await ctx.send(text)
 
 
-'''
 @bot.command(name='prefix', help=prefix_help_string)
 async def change_prefix(ctx, prefix):
-    old_prefix = bot.command_prefix
-    response = f'prefix changed from {old_prefix} to {prefix}'
-    bot.command_prefix = prefix
-    await ctx.send(response)
-'''
+    guild = ctx.guild
+    if guild:
+        old_prefix = r.hget('prefix', ctx.guild.id)
+        response = f'prefix changed from {old_prefix} to {prefix}'
+
+        # go into redis prefix hash
+        r.hset('prefix', ctx.guild.id, prefix)
+
+        await ctx.send(response)
+
 
 bot.run(TOKEN)
