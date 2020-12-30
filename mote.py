@@ -130,13 +130,14 @@ async def save_text(ctx, text_id, text):
         f'Saved to `{savetype}` {emoji} library :white_check_mark:'
     )
 
-    # redis store (id, text) @ text_library
+    # redis store (text_id, text) @ text_library
     key = str(savetype.id) + ':' + text_id
-    value = text
-    r.hset('text_library', key, value)
+    r.hset('text_library', key, text)
 
     # redis store text_ids that belong to user or channel
-    r.lpush(savetype.id, text_id)
+    # using sorted set as unique value list
+    # r.zadd("redis_key_name", {data: score})
+    r.zadd(savetype.id, {text_id: 0})
 
     await ctx.send(response)
 
@@ -160,7 +161,6 @@ async def get_text_by_id(ctx, text_id):
         await ctx.send(value)
 
 
-# TODO:
 @bot.command(name='dump', help=dump_help_string)
 async def dump_text(ctx):
 
@@ -174,12 +174,13 @@ async def dump_text(ctx):
     else:
         dump_as = ctx.channel.id
 
-    number_saved = r.llen(dump_as)
+    # getting total number of elements in sorted set regardless of score
+    number_saved = r.zcount(dump_as, '-inf', 'inf')
 
     # print(f'number_saved = {number_saved}')
     # print(r.lrange(dump_as, 0, number_saved))
 
-    dump_ids = r.lrange(dump_as, 0, number_saved)
+    dump_ids = r.zrange(dump_as, 0, number_saved)
     dump_string = ''
 
     for text_id in dump_ids:
