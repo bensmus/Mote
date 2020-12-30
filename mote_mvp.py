@@ -32,9 +32,6 @@
 # no support for label or multilabel
 # to do label, we need ownership list and another hash table
 
-# a simpler command would be dump, and is a good starting point
-# dump shows all (id text) belonging to person or channel
-
 # standard library
 import os
 
@@ -103,9 +100,14 @@ save_help_string = (
     'it will save to the channel library.'
 )
 
-id_help_string = 'Display entries based on ID.'
-dump_help_string = 'Displays all your entries'
-prefix_help_string = 'Change the prefix used by the discord bot.'
+# have a separator for both of them, first matches in personal library, then matches in channel library
+id_help_string = (
+    'Display entries based on ID.'
+)
+
+prefix_help_string = (
+    'Change the prefix used by the discord bot.'
+)
 
 
 @bot.command(name='save', help=save_help_string)
@@ -126,13 +128,11 @@ async def save_text(ctx, ID, text):
         f'Saved to `{savetype}` {emoji} library :white_check_mark:'
     )
 
-    # redis store (id, text) @ text_library
+    # redis storage
     key = str(savetype.id) + ':' + ID
     value = text
     r.hset('text_library', key, value)
-
-    # redis store keys that belong to savetype
-    r.lpush(savetype.id, key)
+    # r.save()
 
     await ctx.send(response)
 
@@ -156,27 +156,6 @@ async def get_text_by_id(ctx, ID):
         await ctx.send(value)
 
 
-# TODO:
-@bot.command(name='dump', help=dump_help_string)
-async def dump_text(ctx):
-
-    # the channel or author that we are dumping as
-    dump_as = None
-
-    # detect DM
-    if isinstance(ctx.channel, discord.channel.DMChannel):
-        dump_as = ctx.author.id
-
-    else:
-        dump_as = ctx.channel.id
-
-    number_saved = r.llen(dump_as)
-    print(f'number_saved = {number_saved}')
-    print(r.lrange(dump_as, 0, number_saved))
-
-    await ctx.send('Dump command detected: not yet implemented :cry:')
-
-
 def prefix_check(prefix, old_prefix):
     if len(prefix) == 1:
         if not (prefix.isdigit() or prefix.isalpha()):
@@ -187,7 +166,7 @@ def prefix_check(prefix, old_prefix):
     return False, 'Prefix cannot be more than one character long :x:'
 
 
-@ bot.command(name='prefix', help=prefix_help_string)
+@bot.command(name='prefix', help=prefix_help_string)
 async def change_prefix(ctx, prefix):
     guild = ctx.guild
     if guild:
