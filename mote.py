@@ -1,3 +1,7 @@
+# TODO: change the storage of ids associated with a user to a set
+# we want a sorted set becasuse we want newer ids to appear first
+# and also check to see if it is maximally clean
+
 # ----RUNNING LOCALLY----
 # https://realpython.com/python-redis/#using-redis-py-redis-in-python
 # https://hackersandslackers.com/redis-py-python/
@@ -33,7 +37,7 @@
 # to do label, we need ownership list and another hash table
 
 # a simpler command would be dump, and is a good starting point
-# dump shows all (id text) belonging to person or channel
+# dump shows all id belonging to person or channel (that have ever been defined)
 
 # standard library
 import os
@@ -131,8 +135,8 @@ async def save_text(ctx, ID, text):
     value = text
     r.hset('text_library', key, value)
 
-    # redis store keys that belong to savetype
-    r.lpush(savetype.id, key)
+    # redis store IDs that belong to savetype
+    r.lpush(savetype.id, ID)
 
     await ctx.send(response)
 
@@ -171,10 +175,18 @@ async def dump_text(ctx):
         dump_as = ctx.channel.id
 
     number_saved = r.llen(dump_as)
-    print(f'number_saved = {number_saved}')
-    print(r.lrange(dump_as, 0, number_saved))
 
-    await ctx.send('Dump command detected: not yet implemented :cry:')
+    # print(f'number_saved = {number_saved}')
+    # print(r.lrange(dump_as, 0, number_saved))
+
+    dump_ids = r.lrange(dump_as, 0, number_saved)
+    dump_string = ''
+
+    for ID in dump_ids:
+        # it is completely unnecessary to show them their user id
+        dump_string += (ID + '\n')
+
+    await ctx.send(dump_string)
 
 
 def prefix_check(prefix, old_prefix):
@@ -197,7 +209,6 @@ async def change_prefix(ctx, prefix):
         if passed:
             # go into redis prefix hash
             r.hset('prefix', ctx.guild.id, prefix)
-            r.save()
 
         await ctx.send(response)
 
