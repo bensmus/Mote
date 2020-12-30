@@ -113,7 +113,7 @@ prefix_help_string = 'Change the prefix used by the discord bot.'
 
 
 @bot.command(name='save', help=save_help_string)
-async def save_text(ctx, ID, text):
+async def save_text(ctx, text_id, text):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
@@ -125,31 +125,31 @@ async def save_text(ctx, ID, text):
         savetype = ctx.channel
 
     response = (
-        f'ID: `{ID}`\n'
+        f'ID: `{text_id}`\n'
         f'Text: `{text}`\n'
         f'Saved to `{savetype}` {emoji} library :white_check_mark:'
     )
 
     # redis store (id, text) @ text_library
-    key = str(savetype.id) + ':' + ID
+    key = str(savetype.id) + ':' + text_id
     value = text
     r.hset('text_library', key, value)
 
-    # redis store IDs that belong to savetype
-    r.lpush(savetype.id, ID)
+    # redis store text_ids that belong to user or channel
+    r.lpush(savetype.id, text_id)
 
     await ctx.send(response)
 
 
 @bot.command(name='id', help=id_help_string)
-async def get_text_by_id(ctx, ID):
+async def get_text_by_id(ctx, text_id):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
-        key = str(ctx.author.id) + ':' + ID
+        key = str(ctx.author.id) + ':' + text_id
 
     else:
-        key = str(ctx.channel.id) + ':' + ID
+        key = str(ctx.channel.id) + ':' + text_id
 
     value = r.hget('text_library', key)
 
@@ -182,9 +182,8 @@ async def dump_text(ctx):
     dump_ids = r.lrange(dump_as, 0, number_saved)
     dump_string = ''
 
-    for ID in dump_ids:
-        # it is completely unnecessary to show them their user id
-        dump_string += (ID + '\n')
+    for text_id in dump_ids:
+        dump_string += (text_id + '\n')
 
     await ctx.send(dump_string)
 
