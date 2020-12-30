@@ -1,7 +1,37 @@
-# TODO change prefix changes prefix of bot on all servers
-# which is extremely SHIT
-# TODO https://stackoverflow.com/questions/32276493/how-to-store-and-retrieve-a-dictionary-with-redis
-# json.dumps() and json.loads() for serialization and deserialization
+# ----RUNNING LOCALLY----
+# https://realpython.com/python-redis/#using-redis-py-redis-in-python
+# https://hackersandslackers.com/redis-py-python/
+# downloading redis-stable tarball into /usr/local/lib
+
+# 1) redis-server /etc/redis/6379.conf
+# this creates server that runs in the background
+# to check the process: "pgrep redis-server"
+# to kill the process: "redis-cli" --> "shutdown"
+# 2) run the python script
+# 3) check your work with "rdb --command json dump.rdb"
+
+# If I restart my computer, I need to restart the redis server
+# the data is saved in the dump.rdb from which the server fetches automatically
+
+# Python:
+# r = redis.StrictRedis(decode_responses=True)
+# ------------------------
+
+# ----RUNNING REMOTELY----
+# REDIS_URL config variable is made
+# tells the server what configuration to used based on a url
+# we can see that behind the scenes, heroku uses AWS
+
+# turning the whole shebang on and off is done by toggling the worker on the heroku website
+
+# Python:
+# r = redis.from_url(REDIS_URL)
+
+# ------------------------
+
+# no support for label or multilabel
+# to do label, we need ownership list and another hash table
+
 # standard library
 import os
 
@@ -9,13 +39,42 @@ import os
 import discord
 from discord.ext import commands
 
+# redis for storing persistent data about prefixes and saved entries
+import redis
+
 TOKEN = os.getenv('DISCORD_TOKEN')
+REDIS_URL = os.getenv('REDIS_URL')
 SHRUG = r'¯\_(ツ)_/¯'
+DEFAULT_PREFIX = '#'
 
-bot = commands.Bot(command_prefix='#')
+r = redis.from_url(REDIS_URL, decode_responses=True)
 
 
-@bot.event
+async def determine_prefix(bot, message):
+    guild = message.guild
+    if guild:
+
+        # try to get prefix, if the bot has been on the server before
+        prefix = r.hget('prefix', guild.id)
+
+        # ok, we haven't visited server
+        # set prefix to default
+        if not prefix:
+            r.hset('prefix', guild.id, DEFAULT_PREFIX)
+            # r.save()  forced save does not work on Heroku redis for some reason
+            return DEFAULT_PREFIX
+
+        return prefix
+
+    return DEFAULT_PREFIX
+
+
+# discord bot command_prefix can be linked to a callable
+# callable occurs every message
+bot = commands.Bot(command_prefix=determine_prefix)
+
+
+@ bot.event
 async def on_guild_join(guild):
     response = (
         'Joined :white_check_mark:\n'
@@ -41,13 +100,9 @@ save_help_string = (
     'it will save to the channel library.'
 )
 
-save_channel_help_string = (
-    'Save text with ID and label. Visible to everyone on this channel, while on this server.'
-)
-
 # have a separator for both of them, first matches in personal library, then matches in channel library
 id_help_string = (
-    'Display entries based on ID, saved in your personal library and in channel library.'
+    'Display entries based on ID.'
 )
 
 prefix_help_string = (
@@ -55,56 +110,78 @@ prefix_help_string = (
 )
 
 
-def save_to_personal_library(text, ctx, ID, label):
-    """
-    Saving to personal library is done when user types #save <id> <text> 
-    into a DM with the bot. 
-    """
-    response = (
-        f'ID: `{ID}`\n'
-        f'Text: `{text}`\n'
-        f'Label: `{label}`\n'
-        f'Saved to `{ctx.author}` personal :person_standing: library :white_check_mark:'
-    )
-    return response
-
-
-def save_to_channel_library(text, ctx, ID, label):
-    """
-    Saving to channel library is done when user types #save <id> <text>
-    into a channel on a server that has the bot.
-    """
-
-    channel_emoji = ':person_standing:' * 3
-    response = (
-        f'ID: `{ID}`\n'
-        f'Text: `{text}`\n'
-        f'Label: `{label}`\n'
-        f'Saved to `{ctx.channel}` channel {channel_emoji} '
-        f'library on `{ctx.guild}` :white_check_mark:'
-    )
-    return response
-
-
 @bot.command(name='save', help=save_help_string)
-async def save_text(ctx, ID, text, label=None):
+async def save_text(ctx, ID, text):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
-        response = save_to_personal_library(text, ctx, ID, label)
+        savetype = ctx.author
+        emoji = ':person_standing:'
 
     else:
-        response = save_to_channel_library(text, ctx, ID, label)
+        emoji = ':person_standing:' * 3
+        savetype = ctx.channel
+
+    response = (
+        f'ID: `{ID}`\n'
+        f'Text: `{text}`\n'
+        f'Saved to `{savetype}` {emoji} library :white_check_mark:'
+    )
+
+    # redis storage
+    key = str(savetype.id) + ':' + ID
+    value = text
+    r.hset('text_library', key, value)
+    # r.save()
 
     await ctx.send(response)
+
+
+@bot.command(name='id', help=id_help_string)
+async def get_text_by_id(ctx, ID):
+
+    # detect DM
+    if isinstance(ctx.channel, discord.channel.DMChannel):
+        key = str(ctx.author.id) + ':' + ID
+
+    else:
+        key = str(ctx.channel.id) + ':' + ID
+
+    value = r.hget('text_library', key)
+
+    if value == None:
+        await ctx.send('No text found based on the given id :cry:')
+
+    else:
+        await ctx.send(value)
+
+
+def prefix_check(prefix, old_prefix):
+    if len(prefix) == 1:
+        if not (prefix.isdigit() or prefix.isalpha()):
+            if prefix != '@':
+                return True, f'Prefix changed from {old_prefix} to {prefix} :white_check_mark:'
+            return False, 'Prefix cannot be changed to @ :x:'
+        return False, 'Prefix cannot be number or letter :x:'
+    return False, 'Prefix cannot be more than one character long :x:'
 
 
 @bot.command(name='prefix', help=prefix_help_string)
 async def change_prefix(ctx, prefix):
-    old_prefix = bot.command_prefix
-    response = f'prefix changed from {old_prefix} to {prefix}'
-    bot.command_prefix = prefix
-    await ctx.send(response)
+    guild = ctx.guild
+    if guild:
+        old_prefix = r.hget('prefix', ctx.guild.id)
+        passed, response = prefix_check(prefix, old_prefix)
+
+        if passed:
+            # go into redis prefix hash
+            r.hset('prefix', ctx.guild.id, prefix)
+            r.save()
+
+        await ctx.send(response)
+
+    else:
+        await ctx.send('Prefix command cannot be used in DM channels :x:')
 
 
 bot.run(TOKEN)
