@@ -1,11 +1,11 @@
 **Storage model**
 For prefixes: 
-- prefix hash {guild: prefix}
+- prefix_hash {guild: prefix}
 
 For library:
-- library hash {channel/author.id+id: value}
-- sorted set of id's corresponding to author.id/channel.id 
-    - sorted set so that adding an id is handled automatically (we don't have to think about duplicates)
+- library_hash {channel/author.id+id: value}
+- Set of id's corresponding to author.id/channel.id 
+    - Adding an id is handled automatically (we don't have to think about duplicates)
 
 **Unique id's provided by Discord API**
 ctx.author.id <--- unique (for storing DM library)
@@ -18,7 +18,12 @@ redis> HGET myhash field1
 "Hello"
 redis> 
 
-**Prefix changing is the only thing that should be done server wide, don't allow prefix changing for DM's**
+**Redis code for set**
+redis> SADD myset "Hello"
+(integer) 1
+redis> SMEMBERS myset
+"Hello"
+redis> 
 
 *Discord command and corresponding redis call: in a DM*
 

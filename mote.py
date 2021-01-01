@@ -1,7 +1,3 @@
-# TODO: since your error_handle decorator returns a function that accepts
-# (*args, **kwargs) you have to make sure that the builtin help doesn't get
-# confused. Just try running help on any of the commands!
-
 # ----RUNNING LOCALLY----
 # https://realpython.com/python-redis/#using-redis-py-redis-in-python
 # https://hackersandslackers.com/redis-py-python/
@@ -61,11 +57,11 @@ r = redis.from_url(REDIS_URL, decode_responses=True)
 
 
 def error_handle(func):
-    @functools.wraps(func)
+    @functools.wraps(func)  # necessary to preserve identity for help
     async def handled(ctx, *args, **kwargs):
         try:
             await func(ctx, *args, **kwargs)
-        except Exception:
+        except discord.DiscordException:
             await ctx.send('Command argument error  :x:')
     return handled
 
@@ -150,9 +146,7 @@ async def save_text(ctx, text_id, text):
     r.hset('library', key, text)
 
     # redis store text_ids that belong to user or channel
-    # using sorted set as unique value list
-    # r.zadd("redis_key_name", {data: score})
-    r.zadd(savetype.id, {text_id: 0})
+    r.sadd(savetype.id, text_id)
 
     await ctx.send(response)
 
@@ -189,7 +183,7 @@ async def delete_text_by_id(ctx, *text_ids):
         delete_as = ctx.channel.id
 
     # 1) remove the id from the id's that are associated with author/channel
-    r.zrem(delete_as, *text_ids)  # unpacking argument list
+    r.srem(delete_as, *text_ids)  # unpacking argument list
 
     # 2) remove the id and text from the library
     # get a tuple of delete_as + : + text_id
@@ -213,14 +207,10 @@ async def dump_text(ctx):
     else:
         dump_as = ctx.channel.id
 
-    # getting total number of elements in sorted set regardless of score
-    number_saved = r.zcount(dump_as, '-inf', 'inf')
+    set_of_dump_ids = r.smembers(dump_as)
 
-    if number_saved != 0:
-        # print(f'number_saved = {number_saved}')
-        # print(r.lrange(dump_as, 0, number_saved))
-
-        dump_ids = r.zrange(dump_as, 0, number_saved)
+    if set_of_dump_ids:  # not None
+        dump_ids = list(set_of_dump_ids).sort()
         dump_string = ''
 
         for text_id in dump_ids:
