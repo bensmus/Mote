@@ -1,13 +1,20 @@
-# ----RUNNING REMOTELY----
-# REDIS_URL config variable is made
-# tells the server what configuration to used based on a url
-# we can see that behind the scenes, heroku uses AWS
+# ----RUNNING LOCALLY----
+# https://realpython.com/python-redis/#using-redis-py-redis-in-python
+# https://hackersandslackers.com/redis-py-python/
+# downloading redis-stable tarball into /usr/local/lib
 
-# turning the whole shebang on and off is done by toggling the worker on the heroku website
+# 1) redis-server /etc/redis/6379.conf
+# this creates server that runs in the background
+# to check the process: "pgrep redis-server"
+# to kill the process: "redis-cli" --> "shutdown"
+# 2) run the python script
+# 3) check your work with "rdb --command json dump.rdb"
+
+# If I restart my computer, I need to restart the redis server
+# the data is saved in the dump.rdb from which the server fetches automatically
 
 # Python:
-# r = redis.from_url(REDIS_URL)
-
+# r = redis.StrictRedis(decode_responses=True)
 # ------------------------
 
 # identity preserver
@@ -28,7 +35,7 @@ REDIS_URL = os.getenv('REDIS_URL')
 SHRUG = r'¯\_(ツ)_/¯'
 DEFAULT_PREFIX = '#'
 
-r = redis.from_url(REDIS_URL, decode_responses=True)
+r = redis.StrictRedis(decode_responses=True)
 
 
 def error_handle(func):
