@@ -8,8 +8,8 @@ Save websites or other information onto a discord channel or in your personal li
 
 # List of commands
 
-Commands are entered by typing #\<Your comand here>.\
-\# is known as a prefix, and can be changed with the prefix command. Commands take arguments, which are separated by spaces.
+Commands are entered by typing \<prefix>\<command> \<argument 1> \<argument 2> ...   
+Upon adding the bot to your server, type "#help" for more details.
 
 - **save:** Saves text at a given ID. This command can be used to overwrite an already existing ID. 
 - **get:** Get text at a given ID.
@@ -19,21 +19,21 @@ Commands are entered by typing #\<Your comand here>.\
 - **help:** Shows help, which will help you out.
 
 # Usage
-#save url www.besturl.com\
-#save shrug ```¯\_(ツ)_/¯```\
-#save mike-email mike@mail.com\
+#save url www.besturl.com  
+#save shrug ```¯\_(ツ)_/¯```  
+#save mike-email mike@mail.com  
 #get url
 > www.besturl.com
 
 #dump
-> mike-email\
-shrug\
+> mike-email  
+shrug  
 url
 
-#prefix !\
-!delete mike-email\
+#prefix !  
+!delete mike-email  
 !dump
-> shrug\
+> shrug  
 url
 
 # Implementation
