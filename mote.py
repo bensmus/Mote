@@ -1,17 +1,28 @@
-# ----RUNNING REMOTELY----
+# # ----RUNNING REMOTELY----
 # REDIS_URL config variable is made
 # tells the server what configuration to used based on a url
 # we can see that behind the scenes, heroku uses AWS
-
 # turning the whole shebang on and off is done by toggling the worker on the heroku website
+# --------------------------
 
-# Python:
-# r = redis.from_url(REDIS_URL)
+# ---RUNNING LOCALLY--------
+# https://realpython.com/python-redis/#using-redis-py-redis-in-python
+# https://hackersandslackers.com/redis-py-python/
+# downloading redis-stable tarball into /usr/local/lib
 
-# ------------------------
+# 1) redis-server /etc/redis/6379.conf
+# this creates server that runs in the background
+# to check the process: "pgrep redis-server"
+# to kill the process: "redis-cli" --> "shutdown"
+# 2) run the python script
+# 3) check your work with "rdb --command json dump.rdb"
 
-# identity preserver
-import functools
+# If I restart my computer, I need to restart the redis server
+# the data is saved in the dump.rdb from which the server fetches automatically
+# --------------------------
+
+# command line arguments for running remotely or locally
+import sys
 
 # standard library
 import os
@@ -28,17 +39,13 @@ REDIS_URL = os.getenv('REDIS_URL')
 SHRUG = r'¯\_(ツ)_/¯'
 DEFAULT_PREFIX = '#'
 
-r = redis.from_url(REDIS_URL, decode_responses=True)
-
-
-def error_handle(func):
-    @functools.wraps(func)  # necessary to preserve identity for help
-    async def handled(ctx, *args, **kwargs):
-        try:
-            await func(ctx, *args, **kwargs)
-        except Exception:
-            await ctx.send('Command argument error  :x:')
-    return handled
+if len(sys.argv) == 2:
+    if sys.argv[1] == '--remote':
+        r = redis.from_url(REDIS_URL, decode_responses=True)
+    else:
+        sys.exit(1)
+else:
+    r = redis.StrictRedis(decode_responses=True)
 
 
 async def determine_prefix(bot, message):
@@ -52,7 +59,7 @@ async def determine_prefix(bot, message):
         # set prefix to default
         if not prefix:
             r.hset('prefix', guild.id, DEFAULT_PREFIX)
-            # r.save()  forced save does not work on Heroku redis for some reason
+            # r.save()  # forced save does not work on Heroku Redis for some reason
             return DEFAULT_PREFIX
 
         return prefix
@@ -65,7 +72,7 @@ async def determine_prefix(bot, message):
 bot = commands.Bot(command_prefix=determine_prefix)
 
 
-@ bot.event
+@bot.event
 async def on_guild_join(guild):
     response = (
         'Joined :white_check_mark:\n'
@@ -83,11 +90,19 @@ async def on_guild_join(guild):
     await general.send(response)
 
 
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.errors.CommandNotFound):
+        await ctx.send(':x:  ' + str(error))
+    if isinstance(error, commands.MissingRequiredArgument):
+        await ctx.send(f':x:  ' + str(error))
+
+
 save_help_string = (
     'Save text with ID and label.\n'
-    '`-` if you invoke (type it) the command in a DM, it will save to your '
+    '- if you invoke (type it) the command in a DM, it will save to your '
     'personal library.\n'
-    '`-` if you invoke it in a server text channel, '
+    '- if you invoke it in a server text channel, '
     'it will save to the channel library.'
 )
 
@@ -98,8 +113,7 @@ prefix_help_string = 'Change the prefix used by the discord bot.'
 
 
 @bot.command(name='save', help=save_help_string)
-@error_handle
-async def save_text(ctx, text_id, text):
+async def save(ctx, text_id, text):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
@@ -127,8 +141,7 @@ async def save_text(ctx, text_id, text):
 
 
 @bot.command(name='get', help=get_help_string)
-@error_handle
-async def get_text_by_id(ctx, text_id):
+async def get(ctx, text_id):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
@@ -147,8 +160,7 @@ async def get_text_by_id(ctx, text_id):
 
 
 @bot.command(name='delete', help=delete_help_string)
-@error_handle
-async def delete_text_by_id(ctx, *text_ids):
+async def delete(ctx, *text_ids):
 
     # detect DM
     if isinstance(ctx.channel, discord.channel.DMChannel):
@@ -157,20 +169,24 @@ async def delete_text_by_id(ctx, *text_ids):
     else:
         delete_as = ctx.channel.id
 
-    # 1) remove the id from the id's that are associated with author/channel
-    r.srem(delete_as, *text_ids)  # unpacking argument list
+    # remove the id from the id's that are associated with author/channel
+    deleted = r.srem(delete_as, *text_ids)  # unpacking argument list
 
-    # 2) remove the id and text from the library
-    # get a tuple of delete_as + : + text_id
-    keys = tuple(map(lambda text_id: str(delete_as) + ':' + text_id, text_ids))
-    r.hdel('library', *keys)
+    if deleted:
+        # remove the id and text from the library
+        # get a tuple of delete_as + : + text_id
+        keys = tuple(map(lambda text_id: str(
+            delete_as) + ':' + text_id, text_ids))
+        r.hdel('library', *keys)
 
-    await ctx.send('Key(s) deleted  :white_check_mark:')
+        await ctx.send('ID(s) deleted  :white_check_mark:')
+
+    else:
+        await ctx.send('Nonexistent ID  :robot:')
 
 
 @bot.command(name='dump', help=dump_help_string)
-@error_handle
-async def dump_text(ctx):
+async def dump(ctx):
 
     # the channel or author that we are dumping as
     dump_as = None
@@ -211,8 +227,7 @@ def prefix_check(prefix, old_prefix):
 
 
 @ bot.command(name='prefix', help=prefix_help_string)
-@error_handle
-async def change_prefix(ctx, prefix):
+async def prefix(ctx, prefix):
     guild = ctx.guild
     if guild:
         old_prefix = r.hget('prefix', ctx.guild.id)

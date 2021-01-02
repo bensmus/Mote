@@ -1,1 +1,1 @@
-worker: python mote.py
+worker: python mote.py --remote

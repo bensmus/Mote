@@ -3,3 +3,4 @@ old*
 *.rdb
 utility*
 mote_mvp.py
+mote_local.py
